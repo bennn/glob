@@ -15,6 +15,17 @@ Both functions accept an optional boolean argument.
 When this argument is `#t`, search results will include dotfiles matching the pattern.
 (Dotfiles are filtered by default unless matched for explicitly.)
 
+Install
+---
+
+You have three choices:
+
+1. Run `raco pkg install glob` to install through the [Racket package server](pkgs.racket-lang.org).
+
+2. Clone this repository, run `raco pkg install glob/` on the newly-made directory.
+
+3. Clone this repository and manually link to the file `main.rkt` inside it.
+
 Globbing 101
 ---
 
