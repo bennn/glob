@@ -130,6 +130,7 @@
   (for/list ([file (in-list file*)]
              #:when (regexp-match rx (path->string file))
              #:when (or dotfiles?
+                        (eq? #\. (safe-string-ref pattern 0))
                         (not (eq? #\. (safe-string-ref (path->string file) 0)))))
     file))
 
@@ -302,7 +303,8 @@
   (check-equal? (glob-filter "cat?" (make-paths "ca" "car" "cat") #f) (make-paths "ca" "cat"))
   (check-equal? (glob-filter "cat?at" (make-paths "ca" "car" "catat" "caat") #f) (make-paths "catat" "caat"))
   (check-equal? (glob-filter ".?.?.?" (make-paths "a" "ab" "abc" "abcd") #f) '())
-  (check-equal? (glob-filter ".?.?.?" (make-paths "." ".." "..." "....") #f) (list))
+  ;; Literal dots escape the filter
+  (check-equal? (glob-filter ".?.?.?" (make-paths "." ".." "..." "....") #f) (make-paths "." ".." "..."))
   (check-equal? (glob-filter ".?.?.?" (make-paths "." ".." "..." "....") #t) (make-paths "." ".." "..."))
   ;; -- glob-gen
   (define (gen->list g) (for/list ([x (in-producer g (void))]) x))
@@ -474,6 +476,8 @@
   (check-equal? (glob (tmp-file "*")) (list (tmp-file "main.rkt") (tmp-file "test1") (tmp-file "test2")))
   (check-equal? (glob (tmp-file "*") #f) (list (tmp-file "main.rkt") (tmp-file "test1") (tmp-file "test2")))
   (check-equal? (glob (tmp-file "*") #t) (list (tmp-file ".ignoreme") (tmp-file "main.rkt") (tmp-file "test1") (tmp-file "test2")))
+  (check-equal? (glob (tmp-file ".*") #t) (list (tmp-file ".ignoreme")))
+  (check-equal? (glob (tmp-file ".*") #f) (list (tmp-file ".ignoreme")))
 
   (delete-directory/files tmp-dir2)
 )
