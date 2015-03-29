@@ -13,10 +13,10 @@
 ;; - a sextile (*) denotes a list i.e. "path*" should read as "a list of paths"
 
 (provide
-  ;; (-> String (Listof Path))
+  ;; (->* (String) (Boolean) (Listof Path))
   ;; Return a list of all files/directories matching the argument glob.
   glob
-  ;; (-> String (Sequenceof Path))
+  ;; (->* (String) (Boolean) (Sequenceof Path))
   ;; Same as glob, but returns an iterable instead of a list.
   in-glob)
 
