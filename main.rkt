@@ -48,6 +48,9 @@
 ;; (: GLOB-PATTERNS (Listof Char))
 (define GLOB-PATTERNS '(#\* #\? #\[ #\]))
 
+;; (: REGEXP-CHARS (Listof Char))
+(define REGEXP-CHARS '(#\. #\( #\) #\| #\+ #\$ #\^))
+
 ;; Strings that cannot appear after a glob pattern
 (define INVALID_AFTER_GLOB '(".."))
 
@@ -87,14 +90,15 @@
 ;; Follow a glob pattern (segmented into paths) through the filesystem.
 ;; Generate a sequence of matches.
 ;; (: glob-gen (-> (Listof String) Path-String (Listof Path) (Sequenceof Path)))
-(define glob-gen (generator (path* prefix file*)
+(define (glob-gen path* prefix file*) (generator ()
   (match (cons path* file*)
     ;; Finished searching, yield all matches
     [(cons '() _)
-     (for ([f file*]) (yield (string-append prefix (path->string f))))]
+     (for ([f file*]) (yield (string-append prefix (path->string f))))
+     (yield (void))]
     ;; No matching files. Die.
     [(cons _ '())
-     (void)]
+     (yield (void))]
     ;; Match current files with current glob patterns,
     ;; spawn a recursive search for each match.
     [(cons (cons pattern path*) file*)
@@ -102,8 +106,9 @@
            ;; Check that no patterns left, or the matched `file` is a directory
            #:when (or (empty? path*) ;; No patterns left
                       (directory-exists? (string-append prefix (path->string file)))))
-        (let ([new-prefix (string-append prefix (path->string file))])
-          (glob-gen path* new-prefix (directory-list new-prefix))))])))
+        (let* ([new-prefix (string-append prefix (path->string file))]
+               [all (glob-gen path* new-prefix (directory-list new-prefix))])
+          (for ([result (in-producer all)]) (yield result))))])))
 
 ;; Return all members of `file*` that match the glob `pattern`.
 ;; (: glob-filter (-> String (Listof Path) (Listof Path-String)))
@@ -116,7 +121,7 @@
 ;; Compile a glob pattern to a regular expression.
 ;; (: glob->regexp (-> String String))
 (define (glob->regexp str)
-  (apply string-append
+  (define body
     (for/list ([i (in-range (string-length str))])
       (cond [(escaped? (safe-string-ref str (- i 2)) (safe-string-ref str (sub1 i)))
              ;; Character is escaped, keep it
@@ -124,9 +129,13 @@
             [(eq? (string-ref str i) #\*)
              ;; Convert glob * to regex .*
              ".*"]
+            [(member (string-ref str i) REGEXP-CHARS)
+             ;; Escape characters that the regexp might interpret
+             (string #\\ (string-ref str i))]
             [else
              ;; Keep everything else
-             (string (string-ref str i))]))))
+             (string (string-ref str i))])))
+  (format "^~a$" (apply string-append body)))
 
 ;; -- utils
 
@@ -232,6 +241,37 @@
 
 (module+ test
   ;; Generator tests
+  ;; -- glob->regexp
+  (check-equal? (glob->regexp "foobar") "^foobar$")
+  (check-equal? (glob->regexp ".") "^\\.$")
+  (check-equal? (glob->regexp "*") "^.*$")
+  (check-equal? (glob->regexp "foo*.txt") "^foo.*\\.txt$")
+  (check-equal? (glob->regexp "(hello world)") "^\\(hello world\\)$")
+  (check-equal? (glob->regexp "^foo|bar$") "^\\^foo\\|bar\\$$")
+  (check-equal? (glob->regexp "things?") "^things?$")
+  (check-equal? (glob->regexp "thang[sies]") "^thang[sies]$")
+  (check-equal? (glob->regexp ".?.?.?") "^\\.?\\.?\\.?$")
+  ;; -- glob-filter
+  (define-syntax-rule (make-paths str ...)
+    (list (string->path str) ...))
+  (check-equal? (glob-filter "foo" '()) '())
+  (check-equal? (glob-filter "foo" (make-paths "foo")) (make-paths "foo"))
+  (check-equal? (glob-filter "foo" (make-paths "qux" "foo" "bar")) (make-paths "foo"))
+  (check-equal? (glob-filter "*" (make-paths "cat" "dog" "goa")) (make-paths "cat" "dog" "goa"))
+  (check-equal? (glob-filter "*.txt" (make-paths "file.txt" "sheet.txt" "work.jar" "play.tab")) (make-paths "file.txt" "sheet.txt"))
+  (check-equal? (glob-filter "cat?" (make-paths "ca" "car" "cat")) (make-paths "ca" "cat"))
+  (check-equal? (glob-filter "cat?at" (make-paths "ca" "car" "catat" "caat")) (make-paths "catat" "caat"))
+  (check-equal? (glob-filter ".?.?.?" (make-paths "a" "ab" "abc" "abcd")) '())
+  (check-equal? (glob-filter ".?.?.?" (make-paths "." ".." "..." "....")) (make-paths "." ".." "..."))
+  ;; -- glob-gen
+  (define (gen->list g) (for/list ([x (in-producer g (void))]) x))
+  (check-equal? (gen->list (glob-gen '() "" '())) '())
+  (check-equal? (gen->list (glob-gen (list "cat") "" '())) '())
+  (check-equal? (gen->list (glob-gen '() "" (make-paths "cat"))) (list "cat"))
+  (check-equal? (gen->list (glob-gen '() "with-prefix" (make-paths "cat"))) (list "with-prefixcat"))
+  ;; TODO more tests
+;  (check-equal? (gen->list (glob-gen (list "foo") "" (make-paths "asdf" "woof" "foosh" "foo"))) (list "foo"))
+;  (check-equal? (gen->list (glob-gen (list "foo") "" (make-paths "asdf" "woof" "foosh" "foo"))) (list "foo"))
 )
 
 (module+ test
