@@ -436,42 +436,31 @@
   (check-equal? (glob (tmp-file "[xyz]?main.rkt")) (list (tmp-file "main.rkt")))
   (check-equal? (glob (tmp-file "[xyz]?main*[x]?rkt")) (list (tmp-file "main.rkt")))
 
+  ;; -- More than one match
+  (make-directory (tmp-file "test1"))
+  (make-directory (tmp-file "test2"))
+  (touch-file (tmp-file "test1/file1"))
+  (touch-file (tmp-file "test1/file2"))
+  (touch-file (tmp-file "test1/file3"))
+  (touch-file (tmp-file "test2/file1"))
+  (touch-file (tmp-file "test2/file2"))
+  (touch-file (tmp-file "test2/file3"))
+
+  (define all-files (map tmp-file (list "test1/file1" "test1/file2" "test1/file3" "test2/file1" "test2/file2" "test2/file3")))
+
+  (check-equal? (glob (tmp-file "*")) (list (tmp-file "main.rkt") (tmp-file "test1") (tmp-file "test2")))
+  (check-equal? (glob (tmp-file "*/*")) all-files)
+  (check-equal? (glob (tmp-file "test*/*")) all-files)
+  (check-equal? (glob (tmp-file "test[12]/*")) all-files)
+  (check-equal? (glob (tmp-file "test1?2?/*")) all-files)
+  (check-equal? (glob (tmp-file "*/file*")) all-files)
+  (check-equal? (glob (tmp-file "*/file[123]")) all-files)
+  (check-equal? (glob (tmp-file "test[12]/file[123]")) all-files)
+  (check-equal? (glob (tmp-file "m?test[12]/file[123]")) all-files)
+  (check-equal? (glob (tmp-file "test1?2?/file1?2?3?")) all-files)
+
+  (check-equal? (glob (tmp-file "test1/file*")) (list (tmp-file "test1/file1") (tmp-file "test1/file2") (tmp-file "test1/file3")))
+
   (delete-directory/files tmp-dir2)
 )
 
-;(module+ test
-;  (require racket/system)
-;  ;; Create files
-;  (system "mkdir /tmp/globtest1")
-;  (system "mkdir /tmp/globtest2")
-;  (system "touch /tmp/globtest1/file1")
-;  (system "touch /tmp/globtest1/file2")
-;  (system "touch /tmp/globtest1/file3")
-;  (system "touch /tmp/globtest2/file1")
-;  (system "touch /tmp/globtest2/file2")
-;  (system "touch /tmp/globtest2/file3")
-;  ;; Test catch-alls
-;  ;; (define-syntax-rule (test-glob-all stx)
-;  ;;   (syntax-parse stx
-;  ;;     [(_ strs:str ...)
-;  ;;      #'((check-equal? (glob strs) '("/tmp/globtest1/file1"
-;  ;;                                     "/tmp/globtest1/file2"
-;  ;;                                     "/tmp/globtest1/file3"
-;  ;;                                     "/tmp/globtest2/file1"
-;  ;;                                     "/tmp/globtest2/file2"
-;  ;;                                     "/tmp/globtest2/file3")) ...)]))
-;  ;; TODO macroize
-;  (define (test-glob-all str*)
-;    (for ([s str*]) (check-equal? (glob s) '("/tmp/globtest1/file1"
-;                                             "/tmp/globtest1/file2"
-;                                             "/tmp/globtest1/file3"
-;                                             "/tmp/globtest2/file1"
-;                                             "/tmp/globtest2/file2"
-;                                             "/tmp/globtest2/file3"))))
-;  (test-glob-all
-;    "/tmp/globtest*/file*"
-;    "/tmp/globtest*/file[123]"
-;    "/tmp/globtest[12]/file*"
-;    "/tmp/globtest1?2?/file1?2?3?"
-;    "/tmp/globtest*/*"
-;  )
