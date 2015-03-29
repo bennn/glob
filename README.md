@@ -36,7 +36,7 @@ Notes
 -----
 - To match a literal `*` or `?` or square brace, escape it with a preceding `\`.
   Be careful though, with Racket's string reader.
-  For example, `(glob "foo\*")` is an error: `unknown escape character `\*`.
+  For example, `(glob "foo\*")` is an error: `unknown escape character \*.`
   Instead, escape the slash with `(glob "foo\\*")` or create a string literal with `(glob (string #\f #\o #\o #\\ #\*))`.
 
 - _2015-03-29:_ The tilde character `~` is not expanded.
