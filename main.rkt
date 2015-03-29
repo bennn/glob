@@ -37,8 +37,17 @@
   (match (parse pattern)
     [#f
      (error (format "glob: Invalid pattern '~a'" pattern))]
+    ;; No globs, just make sure prefix is valid
+    [(cons prefix '())
+     #:when (or (file-exists? prefix) (directory-exists? prefix))
+     (in-list (list prefix))]
+    ;; Multiple globs, recurse on the files within `prefix` directory
     [(cons prefix path*)
-     (glob-gen path* prefix (directory-list prefix))]))
+     #:when (directory-exists? prefix)
+     (in-producer (glob-gen path* prefix (directory-list prefix)) (void))]
+    ;; Fallback: file / directory does not exist
+    [_
+     (in-list '())]))
 
 ;; -----------------------------------------------------------------------------
 ;; --- Helpers
@@ -63,7 +72,7 @@
   (define prefix (parse-prefix path*))
   (define posfix (drop path* (length prefix)))
   (if (validate posfix)
-      (cons prefix posfix)
+      (cons (path-concat prefix) posfix)
       #f))
 
 ;; Return the prefix sequence of non-glob elements in `path*`
@@ -79,7 +88,7 @@
     [(or '() (cons _ _))
      '()]))
 
-;; Assert that a list of path fragments constitute a valid glob.
+;; Assert that each fragment in a path constitutes a valid glob.
 ;; 2015-03-28: So far as I know, only the string ".." is invalid
 ;; (: validate (-> (Listof String) Boolean))
 (define (validate paths)
@@ -94,7 +103,7 @@
   (match (cons path* file*)
     ;; Finished searching, yield all matches
     [(cons '() _)
-     (for ([f file*]) (yield (string-append prefix (path->string f))))
+     (for ([f file*]) (yield (path-concat (list prefix (path->string f)))))
      (yield (void))]
     ;; No matching files. Die.
     [(cons _ '())
@@ -105,10 +114,13 @@
      (for ([file (in-list (glob-filter pattern file*))]
            ;; Check that no patterns left, or the matched `file` is a directory
            #:when (or (empty? path*) ;; No patterns left
-                      (directory-exists? (string-append prefix (path->string file)))))
-        (let* ([new-prefix (string-append prefix (path->string file))]
-               [all (glob-gen path* new-prefix (directory-list new-prefix))])
-          (for ([result (in-producer all)]) (yield result))))])))
+                      (directory-exists? (path-concat (list prefix (path->string file))))))
+        (let* ([new-prefix (path-concat (list prefix (path->string file)))])
+          (cond [(empty? path*) (yield new-prefix)]
+                [else ;; Yield all recursive results
+                 (for ([result (in-producer (glob-gen path* new-prefix (directory-list new-prefix)) (void))])
+                   (yield result))])))
+     (yield (void))])))
 
 ;; Return all members of `file*` that match the glob `pattern`.
 ;; (: glob-filter (-> String (Listof Path) (Listof Path-String)))
@@ -165,6 +177,17 @@
                #:when (and (< 0 (string-length path))
                            (not (equal? "." path))))
       path)))
+
+;; Concat a list of strings into a filepath
+(define (path-concat path*)
+  (cond
+    [(empty? path*) "."]
+    [else
+      (define non-empty*
+        (for/list ([path path*]
+                   #:when (< 0 (string-length path)))
+          (if (equal? path "/") "" path)))
+      (string-join non-empty* "/")]))
 
 ;; Access the i-th position of `str`, return #f if
 ;; the reference is out of bounds.
@@ -229,6 +252,18 @@
   (check-equal? (pattern->path* "/foo/../") (list "/" "foo" ".."))
   (check-equal? (pattern->path* "./foo/bar") (list "foo" "bar"))
   (check-equal? (pattern->path* "~/foo/bar") (list "~" "foo" "bar"))
+  (check-equal? (pattern->path* "/") (list "/"))
+  (check-equal? (pattern->path* "//") (list "/"))
+  (check-equal? (pattern->path* "///") (list "/"))
+  (check-equal? (pattern->path* "/a/b/c") (list "/" "a" "b" "c"))
+  ;; -- path-concat
+  (check-equal? (path-concat '()) ".")
+  (check-equal? (path-concat (list "a" "b" "c")) "a/b/c")
+  (check-equal? (path-concat (list "" "foo")) "foo")
+  (check-equal? (path-concat (list "" "foo" "")) "foo")
+  (check-equal? (path-concat (list "yes" "." "" "no")) "yes/./no")
+  (check-equal? (path-concat (list "//" ".." "/")) "///../")
+  (check-equal? (path-concat (list "/" "a" "b" "c")) "/a/b/c")
   ;; -- safe-string-ref
   (check-equal? (safe-string-ref "" 0) #f)
   (check-equal? (safe-string-ref "" 1) #f)
@@ -268,64 +303,141 @@
   (check-equal? (gen->list (glob-gen '() "" '())) '())
   (check-equal? (gen->list (glob-gen (list "cat") "" '())) '())
   (check-equal? (gen->list (glob-gen '() "" (make-paths "cat"))) (list "cat"))
-  (check-equal? (gen->list (glob-gen '() "with-prefix" (make-paths "cat"))) (list "with-prefixcat"))
-  ;; TODO more tests
-;  (check-equal? (gen->list (glob-gen (list "foo") "" (make-paths "asdf" "woof" "foosh" "foo"))) (list "foo"))
-;  (check-equal? (gen->list (glob-gen (list "foo") "" (make-paths "asdf" "woof" "foosh" "foo"))) (list "foo"))
+  (check-equal? (gen->list (glob-gen '() "with-prefix" (make-paths "cat"))) (list "with-prefix/cat"))
+  (check-equal? (gen->list (glob-gen (list "foo") "" (make-paths "asdf" "woof" "foosh" "foo"))) (list "foo"))
+  (check-equal? (gen->list (glob-gen (list "foo") "./" (make-paths "asdf" "woof" "foosh" "foo"))) (list ".//foo"))
+  (check-equal? (gen->list (glob-gen (list "foo*") "" (make-paths "asdf" "woof" "foosh" "foo"))) (list "foosh" "foo"))
+  (check-equal? (gen->list (glob-gen (list "*oo*") "" (make-paths "asdf" "woof" "foosh" "foo"))) (list "woof" "foosh" "foo"))
+)
+
+(module+ test
+  ;; Helper for making test directories
+  (require (only-in racket/syntax generate-temporary))
+  (require (only-in racket/file delete-directory/files display-to-file))
+  (require (only-in unstable/sequence in-syntax))
+  ;; Find a unique tmp/ directory name, create a new directory
+  (define (empty-tmp-dir tag)
+    (define dirname (string-append "/tmp/" tag))
+    (if (directory-exists? dirname)
+      (empty-tmp-dir (symbol->string (syntax->datum (generate-temporary tag))))
+      (begin (make-directory dirname) dirname)))
+
+  (define (touch-file fname)
+    (display-to-file "" fname #:exists 'error))
+
+  (define ((make-tmp-file dir) str) (string-append dir "/" str))
+)
+
+(module+ test
+  ;; More-intensive glob-gen tests
+  (define tmp-dir (empty-tmp-dir "glob"))
+  (define (add-prefix xs) (for/list ([x xs]) (string-append tmp-dir x)))
+  ;; Make some files & directories
+  ;; Run tests
+  (check-equal? (gen->list (glob-gen (list "*") tmp-dir (make-paths "baz" "zap"))) (add-prefix (list "/baz" "/zap")))
+  (check-equal? (gen->list (glob-gen (list "*") "" (make-paths tmp-dir))) (list tmp-dir))
+  (check-equal? (gen->list (glob-gen (list "") "" (make-paths tmp-dir))) (list))
+  ; Fail, no files exist yet
+  (check-equal? (gen->list (glob-gen (list "*" "foo.txt") "" (make-paths tmp-dir))) (list))
+  ; Create one file
+  (touch-file (string-append tmp-dir "/foo.txt"))
+  (check-equal? (gen->list (glob-gen (list "*" "foo.txt") "" (make-paths tmp-dir))) (add-prefix (list "/foo.txt")))
+  (check-equal? (gen->list (glob-gen (list "*" "*") "" (make-paths tmp-dir))) (add-prefix (list "/foo.txt")))
+  ; Add a few more files
+  (touch-file (string-append tmp-dir "/bar.txt"))
+  (touch-file (string-append tmp-dir "/baz.txt"))
+  (touch-file (string-append tmp-dir "/qux.txt"))
+  (check-equal? (gen->list (glob-gen (list "*" "*.txt") "" (make-paths tmp-dir))) (add-prefix (list "/bar.txt" "/baz.txt" "/foo.txt" "/qux.txt")))
+  (check-equal? (gen->list (glob-gen (list "*" "b*.txt") "" (make-paths tmp-dir))) (add-prefix (list "/bar.txt" "/baz.txt")))
+  ; Fail, no directories
+  (check-equal? (gen->list (glob-gen (list "*" "*" "*") "" (make-paths tmp-dir))) (list ))
+  (make-directory (string-append tmp-dir "/dir"))
+  ; Still finds nothing, no files
+  (check-equal? (gen->list (glob-gen (list "*" "*" "*") "" (make-paths tmp-dir))) (add-prefix (list )))
+  (touch-file (string-append tmp-dir "/dir" "/red.c"))
+  (check-equal? (gen->list (glob-gen (list "*" "*" "*") "" (make-paths tmp-dir))) (add-prefix (list "/dir/red.c")))
+  (touch-file (string-append tmp-dir "/dir" "/blue.c"))
+  (check-equal? (gen->list (glob-gen (list "*" "*" "*.c") "" (make-paths tmp-dir))) (add-prefix (list "/dir/blue.c" "/dir/red.c")))
+  (touch-file (string-append tmp-dir "/dir" "/red.co"))
+  (check-equal? (gen->list (glob-gen (list "*" "*" "*.co") "" (make-paths tmp-dir))) (add-prefix (list "/dir/red.co")))
+  (check-equal? (gen->list (glob-gen (list "*" "*" "*.co?") "" (make-paths tmp-dir))) (add-prefix (list "/dir/blue.c" "/dir/red.c" "/dir/red.co")))
+  ;; Clean up
+  (delete-directory/files tmp-dir)
 )
 
 (module+ test
   ;; Parsing tests
+  ;; -- validate
+  (check-true (validate (list)))
+  (check-true (validate (list "a" "b" "c" "d")))
+  (check-true (validate (list "///" "/" "." "asdfadf")))
+  (check-true (validate (list "[asdf]" "[a][b][d]" "[[[]]]" "][[[][]" "a][b]")))
+  (check-true (validate (list "?" "??" "???" "*?*[}.a")))
+  (check-false (validate (list "..")))
+  (check-false (validate (list " " "..")))
+  (check-false (validate (list "a" "b" "c" "d" ".." "e")))
+  ;; -- parse-prefix
+  (check-equal? (parse-prefix (list)) '())
+  (check-equal? (parse-prefix (list "/")) (list "/"))
+  (check-equal? (parse-prefix (list "/" "/")) (list "/" "/"))
+  (check-equal? (parse-prefix (list "//")) (list "//"))
+  (check-equal? (parse-prefix (list "a" "b")) (list "a" "b"))
+  (check-equal? (parse-prefix (list "*" "a" "b")) (list))
+  (check-equal? (parse-prefix (list "yes" "yes" "?" "no")) (list "yes" "yes"))
+  (check-equal? (parse-prefix (list "../" ".." "." ".//" "haha[ha?]")) (list "../" ".." "." ".//"))
+  (check-equal? (parse-prefix (list "foobar" "baz" "quu?x")) (list "foobar" "baz"))
+  ;; -- parse
+  (check-equal? (parse "") (cons "." '()))
+  (check-equal? (parse "/a/b/c") (cons "/a/b/c" '()))
+  (check-equal? (parse "/////a") (cons "/a" '()))
+  (check-equal? (parse "/a/b/c?") (cons "/a/b" (list "c?")))
+  (check-equal? (parse "/a/b/c?/d/e") (cons "/a/b" (list "c?" "d" "e")))
+  (check-equal? (parse "/a/b/c?/../e") #f)
 )
 
-;;(module+ test
-;;  ;; Simple, end-to-end test
-;;  (check-equal? '() (glob "foo")))
+(module+ test
+  ;; End-to-end tests
+  (define tmp-dir2 (empty-tmp-dir "glob"))
+  (define tmp-file (make-tmp-file tmp-dir2))
 
-;;  ;; Assert that 'main.rkt' exists.
-;;  (unless (file-exists? "main.rkt")
-;;    (error "Could not find file 'main.rkt' in the current directory."))
-;;  ;; Test successes
-;;  ;; (define-syntax-rule (test-glob-pass stx)
-;;  ;;   (syntax-parse stx
-;;  ;;     [(_ strs:string ...)
-;;  ;;      #'((check-equal? (glob strs) '("main.rkt")) ...)]))
-;;  ;; TODO macro-ize
-;;  (define (test-glob-pass str*)
-;;    (for ([s str*]) (check-equal? (glob s) '("main.rkt"))))
-;;  (test-glob-pass
-;;    "main.rkt"
-;;    ;; * patterns
-;;    "main*"
-;;    "*.rkt"
-;;    "m*n.rkt"
-;;    "*ain*"
-;;    "*in*t"
-;;    "m*a*i*n*.*r*k*t*"
-;;    "mai*kt"
-;;    ;; ? patterns
-;;    "m?ain.rkt"
-;;    "z?main.rkt"
-;;    "mm?ain.rkt"
-;;    "m?ainx?.rkt?x?"
-;;    "main.rkt"
-;;    "main.rkt"
-;;    ;; [] patterns
-;;    "[m][a][i]n.rkt"
-;;    "main.rk[tttt]"
-;;    "[abcm]ain.rkt"
-;;    "[ma][ma]in.rkt"
-;;    "[ma][ma]in.[xr]kt"
-;;    ;; * ?
-;;    ;; * []
-;;    "[m][a][i]n.r*"
-;;    ;; ? []
-;;    "[xyz]?main.rkt"
-;;    ;; * ? []
-;;    "[xyz]?main*[x]?rkt"
-;;  )
+  (check-equal? (glob (tmp-file "foo")) '())
+  (check-equal? (glob (tmp-file "*")) '())
+  (check-equal? (glob (tmp-file ".?")) '())
+  (check-equal? (glob (tmp-file "[]")) '())
 
-  ;; TODO tests should use shell for expected output
+  ;; -- Just ONE match
+  (touch-file (tmp-file "main.rkt"))
+  ; Simple patterns
+  (check-equal? (glob (tmp-file "main.rkt")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "notmain.rkt")) (list ))
+  ; * patterns
+  (check-equal? (glob (tmp-file "main.rkt")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "main*")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "*.rkt")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "*rkt")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "m*n.rkt")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "*ain*")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "*in*t")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "m*a*i*n*.*r*k*t")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "mai*kt")) (list (tmp-file "main.rkt")))
+  ; ? patterns
+  (check-equal? (glob (tmp-file "m?ain.rkt")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "z?main.rkt")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "m?main.rkt")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "m?ainx?.rkt?x?")) (list (tmp-file "main.rkt")))
+  ; [] patterns
+  (check-equal? (glob (tmp-file "[m][a][i]n.rkt")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "main.rk[tttt]")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "[abcm]ain.rkt")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "[ma][ma]in.rkt")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "[ma][ma]in.[xr]kt")) (list (tmp-file "main.rkt")))
+  ; misc
+  (check-equal? (glob (tmp-file "[m][a][i]n.r*")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "[xyz]?main.rkt")) (list (tmp-file "main.rkt")))
+  (check-equal? (glob (tmp-file "[xyz]?main*[x]?rkt")) (list (tmp-file "main.rkt")))
+
+  (delete-directory/files tmp-dir2)
+)
 
 ;(module+ test
 ;  (require racket/system)
