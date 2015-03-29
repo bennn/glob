@@ -11,6 +11,10 @@ API Functions
 The matches returned by either function should be exactly the same as those returned by the Unix glob `file . -name glob-path-string`.
 Please submit an issue if you find a counterexample.
 
+Both functions accept an optional boolean argument.
+When this argument is `#t`, search results will include dotfiles matching the pattern.
+(Dotfiles are filtered by default unless matched for explicitly.)
+
 Globbing 101
 ---
 
@@ -36,9 +40,6 @@ Notes
   Instead, escape the slash with `(glob "foo\\*")` or create a string literal with `(glob (string #\f #\o #\o #\\ #\*))`.
 
 - _2015-03-29:_ The tilde character `~` is not expanded.
-
-- _2015-03-29:_ Dotfiles are not handled specially.
-  Your results will contain any dotfiles matching the pattern.
 
 - The file `main.rkt` contains a unit test suite.
   You can run this test with `raco test main.rkt`, but beware.
