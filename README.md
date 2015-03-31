@@ -57,3 +57,8 @@ Notes
   It creates a few directories in `/tmp`.
   The suite checks not to overwrite or delete any existing directories, but will loop forever if the `/tmp` directory does not exist.
 
+Credits
+----
+
+Inspired by the Python [glob](https://docs.python.org/2/library/glob.html) library.
+

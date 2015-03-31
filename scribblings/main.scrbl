@@ -48,3 +48,6 @@ Globs are path strings that may contain the following special characters.
 ]
 Aside from these pattern variables, a glob is just a path-string.
 
+@section{Credits}
+
+Inspired by the Python @hyperlink["https://docs.python.org/2/library/glob.html"]{glob} library.
