@@ -13,10 +13,10 @@
 ;; - a sextile (*) denotes a list i.e. "path*" should read as "a list of paths"
 
 (provide
-  ;; (->* (String) (Boolean) (Listof Path))
+  ;; (->* (String) (#:with-dotfiles? Boolean) (Listof Path))
   ;; Return a list of all files/directories matching the argument glob.
   glob
-  ;; (->* (String) (Boolean) (Sequenceof Path))
+  ;; (->* (String) (#:with-dotfiles? Boolean) (Sequenceof Path))
   ;; Same as glob, but returns an iterable instead of a list.
   in-glob)
 
@@ -28,12 +28,12 @@
 ;; --------------------------------------------------------------------------------------------------
 ;; --- API functions
 
-;; (: glob (->* (String) (Boolean) (Listof Path-String)))
-(define (glob s [dotfiles? #f])
-  (for/list ([fp (in-glob s dotfiles?)]) fp))
+;; (: glob (->* (String) (#:with-dotfiles? Boolean) (Listof Path-String)))
+(define (glob s #:with-dotfiles? [dotfiles? #f])
+  (for/list ([fp (in-glob s #:with-dotfiles? dotfiles?)]) fp))
 
-;; (: in-glob (->* (String) (Boolean) (Sequenceof Path-String)))
-(define (in-glob pattern [dotfiles? #f])
+;; (: in-glob (->* (String) (#:with-dotfiles? Boolean) (Sequenceof Path-String)))
+(define (in-glob pattern #:with-dotfiles? [dotfiles? #f])
   (match (parse pattern)
     [#f
      (error (format "glob: Invalid pattern '~a'" pattern))]
@@ -474,10 +474,10 @@
   ;; -- dotfiles
   (touch-file (tmp-file ".ignoreme"))
   (check-equal? (glob (tmp-file "*")) (list (tmp-file "main.rkt") (tmp-file "test1") (tmp-file "test2")))
-  (check-equal? (glob (tmp-file "*") #f) (list (tmp-file "main.rkt") (tmp-file "test1") (tmp-file "test2")))
-  (check-equal? (glob (tmp-file "*") #t) (list (tmp-file ".ignoreme") (tmp-file "main.rkt") (tmp-file "test1") (tmp-file "test2")))
-  (check-equal? (glob (tmp-file ".*") #t) (list (tmp-file ".ignoreme")))
-  (check-equal? (glob (tmp-file ".*") #f) (list (tmp-file ".ignoreme")))
+  (check-equal? (glob (tmp-file "*") #:with-dotfiles? #f) (list (tmp-file "main.rkt") (tmp-file "test1") (tmp-file "test2")))
+  (check-equal? (glob (tmp-file "*") #:with-dotfiles? #t) (list (tmp-file ".ignoreme") (tmp-file "main.rkt") (tmp-file "test1") (tmp-file "test2")))
+  (check-equal? (glob (tmp-file ".*") #:with-dotfiles? #t) (list (tmp-file ".ignoreme")))
+  (check-equal? (glob (tmp-file ".*") #:with-dotfiles? #f) (list (tmp-file ".ignoreme")))
 
   (delete-directory/files tmp-dir2)
 )

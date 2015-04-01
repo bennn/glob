@@ -11,7 +11,7 @@ API Functions
 The matches returned by either function should be exactly the same as those returned by the Unix glob `file . -name glob-path-string`.
 Please submit an issue if you find a counterexample.
 
-Both functions accept an optional boolean argument.
+Both functions accept an optional keyword argument `#:with-dotfiles?`.
 When this argument is `#t`, search results will include dotfiles matching the pattern.
 (Dotfiles are filtered by default unless matched for explicitly.)
 
