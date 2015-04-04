@@ -1,6 +1,5 @@
 #lang scribble/manual
 @require[racket/include]
-@require[scribble/eval]
 @defmodule[glob]
 
 @title[#:tag "top"]{@bold{Glob: Unix-Stle globbing in Racket}}
@@ -11,13 +10,13 @@ This library brings Unix-style globbing to Racket.
 
 @section{API Functions}
 
-@defproc[(glob [glob-string string] [#:with-dotfiles? #f]) (listof path-string)]{
+@defproc[(glob [glob-string string] [#:with-dotfiles? dotfiles? boolean #f]) (listof path-string)]{
   Builds a list of all paths matched by the glob @code{glob-string}.
   Dotfiles are filtered by default unless matched for explicitly.
   Set the keyword argument to @code{#t} to override this behavior.
 }
 
-@defproc[(in-glob [glob-string string] [#:with-dotfiles? #f]) (sequenceof path-string)]{
+@defproc[(in-glob [glob-string string] [#:with-dotfiles? dotfiles? boolean #f]) (sequenceof path-string)]{
   Returns a sequence of all paths matched by the glob @code{glob-string}, rather than storing each match explicitly in a list.
   When the keyword argument is @code{#t}, returns all matching results including dotfiles.
 }
