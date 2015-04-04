@@ -330,55 +330,64 @@
   ;; Helper for making test directories
   (require (only-in racket/syntax generate-temporary))
   (require (only-in racket/file delete-directory/files display-to-file))
-  (require (only-in unstable/sequence in-syntax))
+
+  (require in-new-directory)
+
   ;; Find a unique tmp/ directory name, create a new directory
-  (define (empty-tmp-dir tag)
+  (define (gen-tmp-dirname tag)
     (define dirname (string-append "/tmp/" tag))
     (if (directory-exists? dirname)
       (empty-tmp-dir (symbol->string (syntax->datum (generate-temporary tag))))
-      (begin (make-directory dirname) dirname)))
+      dirname))
 
-  (define (touch-file fname)
-    (display-to-file "" fname #:exists 'error))
-
-  (define ((make-tmp-file dir) str) (string-append dir "/" str))
+;  (define (touch-file fname)
+;    (display-to-file "" fname #:exists 'error))
+;
+;  (define ((make-tmp-file dir) str) (string-append dir "/" str))
 )
 
 (module+ test
   ;; More-intensive glob-gen tests
-  (define tmp-dir (empty-tmp-dir "glob"))
-  (define (add-prefix xs) (for/list ([x xs]) (string-append tmp-dir x)))
+;  (define tmp-dir (empty-tmp-dir "glob"))
+  (define (add-prefix xs) (for/list ([x xs]) (string-append (path->string (current-directory)) x)))
   ;; Make some files & directories
   ;; Run tests
-  (check-equal? (gen->list (glob-gen (list "*") tmp-dir (make-paths "baz" "zap") #f)) (add-prefix (list "/baz" "/zap")))
-  (check-equal? (gen->list (glob-gen (list "*") "" (make-paths tmp-dir) #f)) (list tmp-dir))
-  (check-equal? (gen->list (glob-gen (list "") "" (make-paths tmp-dir) #f)) (list))
-  ; Fail, no files exist yet
-  (check-equal? (gen->list (glob-gen (list "*" "foo.txt") "" (make-paths tmp-dir) #f)) (list))
-  ; Create one file
-  (touch-file (string-append tmp-dir "/foo.txt"))
-  (check-equal? (gen->list (glob-gen (list "*" "foo.txt") "" (make-paths tmp-dir) #f)) (add-prefix (list "/foo.txt")))
-  (check-equal? (gen->list (glob-gen (list "*" "*") "" (make-paths tmp-dir) #f)) (add-prefix (list "/foo.txt")))
-  ; Add a few more files
-  (touch-file (string-append tmp-dir "/bar.txt"))
-  (touch-file (string-append tmp-dir "/baz.txt"))
-  (touch-file (string-append tmp-dir "/qux.txt"))
-  (check-equal? (gen->list (glob-gen (list "*" "*.txt") "" (make-paths tmp-dir) #f)) (add-prefix (list "/bar.txt" "/baz.txt" "/foo.txt" "/qux.txt")))
-  (check-equal? (gen->list (glob-gen (list "*" "b*.txt") "" (make-paths tmp-dir) #f)) (add-prefix (list "/bar.txt" "/baz.txt")))
-  ; Fail, no directories
-  (check-equal? (gen->list (glob-gen (list "*" "*" "*") "" (make-paths tmp-dir) #f)) (list ))
-  (make-directory (string-append tmp-dir "/dir"))
-  ; Still finds nothing, no files
-  (check-equal? (gen->list (glob-gen (list "*" "*" "*") "" (make-paths tmp-dir) #f)) (add-prefix (list )))
-  (touch-file (string-append tmp-dir "/dir" "/red.c"))
-  (check-equal? (gen->list (glob-gen (list "*" "*" "*") "" (make-paths tmp-dir) #f)) (add-prefix (list "/dir/red.c")))
-  (touch-file (string-append tmp-dir "/dir" "/blue.c"))
-  (check-equal? (gen->list (glob-gen (list "*" "*" "*.c") "" (make-paths tmp-dir) #f)) (add-prefix (list "/dir/blue.c" "/dir/red.c")))
-  (touch-file (string-append tmp-dir "/dir" "/red.co"))
-  (check-equal? (gen->list (glob-gen (list "*" "*" "*.co") "" (make-paths tmp-dir) #f)) (add-prefix (list "/dir/red.co")))
-  (check-equal? (gen->list (glob-gen (list "*" "*" "*.co?") "" (make-paths tmp-dir) #f)) (add-prefix (list "/dir/blue.c" "/dir/red.c" "/dir/red.co")))
-  ;; Clean up
-  (delete-directory/files tmp-dir)
+  (parameterize ([keep-new-directories? #f])
+    (in-new-directory (gen-tmp-dirname "glob")
+      (define cwd (path->string (current-directory)))
+      (check-equal?
+        (gen->list (glob-gen (list "*") cwd (make-paths "baz" "zap") #f))
+        (prefix-with-dir (list "/baz" "/zap")))
+  ))
+;  (check-equal? (gen->list (glob-gen (list "*") tmp-dir (make-paths "baz" "zap") #f)) (add-prefix (list "/baz" "/zap")))
+;  (check-equal? (gen->list (glob-gen (list "*") "" (make-paths tmp-dir) #f)) (list tmp-dir))
+;  (check-equal? (gen->list (glob-gen (list "") "" (make-paths tmp-dir) #f)) (list))
+;  ; Fail, no files exist yet
+;  (check-equal? (gen->list (glob-gen (list "*" "foo.txt") "" (make-paths tmp-dir) #f)) (list))
+;  ; Create one file
+;  (touch-file (string-append tmp-dir "/foo.txt"))
+;  (check-equal? (gen->list (glob-gen (list "*" "foo.txt") "" (make-paths tmp-dir) #f)) (add-prefix (list "/foo.txt")))
+;  (check-equal? (gen->list (glob-gen (list "*" "*") "" (make-paths tmp-dir) #f)) (add-prefix (list "/foo.txt")))
+;  ; Add a few more files
+;  (touch-file (string-append tmp-dir "/bar.txt"))
+;  (touch-file (string-append tmp-dir "/baz.txt"))
+;  (touch-file (string-append tmp-dir "/qux.txt"))
+;  (check-equal? (gen->list (glob-gen (list "*" "*.txt") "" (make-paths tmp-dir) #f)) (add-prefix (list "/bar.txt" "/baz.txt" "/foo.txt" "/qux.txt")))
+;  (check-equal? (gen->list (glob-gen (list "*" "b*.txt") "" (make-paths tmp-dir) #f)) (add-prefix (list "/bar.txt" "/baz.txt")))
+;  ; Fail, no directories
+;  (check-equal? (gen->list (glob-gen (list "*" "*" "*") "" (make-paths tmp-dir) #f)) (list ))
+;  (make-directory (string-append tmp-dir "/dir"))
+;  ; Still finds nothing, no files
+;  (check-equal? (gen->list (glob-gen (list "*" "*" "*") "" (make-paths tmp-dir) #f)) (add-prefix (list )))
+;  (touch-file (string-append tmp-dir "/dir" "/red.c"))
+;  (check-equal? (gen->list (glob-gen (list "*" "*" "*") "" (make-paths tmp-dir) #f)) (add-prefix (list "/dir/red.c")))
+;  (touch-file (string-append tmp-dir "/dir" "/blue.c"))
+;  (check-equal? (gen->list (glob-gen (list "*" "*" "*.c") "" (make-paths tmp-dir) #f)) (add-prefix (list "/dir/blue.c" "/dir/red.c")))
+;  (touch-file (string-append tmp-dir "/dir" "/red.co"))
+;  (check-equal? (gen->list (glob-gen (list "*" "*" "*.co") "" (make-paths tmp-dir) #f)) (add-prefix (list "/dir/red.co")))
+;  (check-equal? (gen->list (glob-gen (list "*" "*" "*.co?") "" (make-paths tmp-dir) #f)) (add-prefix (list "/dir/blue.c" "/dir/red.c" "/dir/red.co")))
+;  ;; Clean up
+;  (delete-directory/files tmp-dir)
 )
 
 (module+ test
