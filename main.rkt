@@ -78,12 +78,18 @@
 ;; Return the prefix sequence of non-glob elements in `path*`
 ;; (Stop iteration as soon as we see a glob and return the collected sequence.)
 ;; (: parse-prefix (-> (Listof String) (Listof String)))
-(define (parse-prefix path*)
+(define (parse-prefix path* #:expand-home-dir? [expand? #t])
   (match path*
+    ;; Expand ~, if it's the first thing
+    [(cons "~" path*)
+     #:when expand?
+     ;; Get home directory, convert to string, strip trailing /
+     (let* ([home (path->string (find-system-path 'home-dir))])
+       (cons home (parse-prefix path* #:expand-home-dir? #f)))]
     ;; Non-glob
     [(cons p path*)
      #:when (not (glob? p))
-     (cons p (parse-prefix path*))]
+     (cons p (parse-prefix path* #:expand-home-dir? #f))]
     ;; Empty list, or a glob pattern at head
     [(or '() (cons _ _))
      '()]))
@@ -396,6 +402,12 @@
   (check-equal? (parse-prefix (list "yes" "yes" "?" "no")) (list "yes" "yes"))
   (check-equal? (parse-prefix (list "../" ".." "." ".//" "haha[ha?]")) (list "../" ".." "." ".//"))
   (check-equal? (parse-prefix (list "foobar" "baz" "quu?x")) (list "foobar" "baz"))
+  ;; home directory
+  (check-equal? (parse-prefix (list "~")) (list (path->string (find-system-path 'home-dir))))
+  (check-equal? (parse-prefix (list "~") #:expand-home-dir? #f) (list "~"))
+  (check-equal? (parse-prefix (list "~" "foo")) (list (path->string (find-system-path 'home-dir)) "foo"))
+  (check-equal? (parse-prefix (list "~" "~")) (list (path->string (find-system-path 'home-dir)) "~"))
+  (check-equal? (parse-prefix (list "~" "~") #:expand-home-dir? #f) (list "~" "~"))
   ;; -- parse
   (check-equal? (parse "") (cons "." '()))
   (check-equal? (parse "/a/b/c") (cons "/a/b/c" '()))
@@ -403,6 +415,9 @@
   (check-equal? (parse "/a/b/c?") (cons "/a/b" (list "c?")))
   (check-equal? (parse "/a/b/c?/d/e") (cons "/a/b" (list "c?" "d" "e")))
   (check-equal? (parse "/a/b/c?/../e") #f)
+  (check-equal? (parse "~/foo.txt") (cons (string-append (path->string (find-system-path 'home-dir)) "/foo.txt") '()))
+  (check-equal? (parse "~/foo/bar/baz.md") (cons (string-append (path->string (find-system-path 'home-dir)) "/foo/bar/baz.md") '()))
+  (check-equal? (parse "~/foo/bar?/baz.md") (cons (string-append (path->string (find-system-path 'home-dir)) "/foo") (list "bar?" "baz.md")))
 )
 
 (module+ test
