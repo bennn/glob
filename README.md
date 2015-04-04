@@ -50,8 +50,6 @@ Notes
   For example, `(glob "foo\*")` is an error: `unknown escape character \*.`
   Instead, escape the slash with `(glob "foo\\*")` or create a string literal with `(glob (string #\f #\o #\o #\\ #\*))`.
 
-- _2015-03-29:_ The tilde character `~` is not expanded.
-
 - The file `main.rkt` contains a unit test suite.
   You can run this test with `raco test main.rkt`, but beware.
   It creates a few directories in `/tmp`.
