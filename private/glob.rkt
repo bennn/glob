@@ -225,7 +225,7 @@
 
   ;; Find a unique tmp/ directory name, create a new directory
   (define (gen-tmp-dirname tag)
-    (define dirname (string-append "/tmp/" tag))
+    (define dirname (string-append (path->string (find-system-path 'temp-dir)) "/" tag))
     (if (directory-exists? dirname)
       (gen-tmp-dirname (symbol->string (syntax->datum (generate-temporary tag))))
       dirname))
