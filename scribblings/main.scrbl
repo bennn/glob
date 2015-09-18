@@ -1,5 +1,6 @@
 #lang scribble/manual
 @require[racket/include]
+@require[scribble/eval]
 
 @title[#:tag "top"]{@bold{Glob: Unix-Style globbing in Racket}}
 @author[@hyperlink["https://github.com/bennn"]{Ben Greenman}]
@@ -10,6 +11,7 @@ A glob is like a path string, but allows wildcard characters.
 This library brings Unix-style globbing to Racket.
 
 @section{API Functions}
+@(define glob-eval (make-base-eval '(begin (require glob racket/sequence))))
 
 @defproc[(glob [glob-string string] [#:with-dotfiles? dotfiles? boolean #f]) (listof path-string)]{
   Builds a list of all paths matched by the glob @code{glob-string}.
@@ -17,10 +19,24 @@ This library brings Unix-style globbing to Racket.
   Set the keyword argument to @code{#t} to override this behavior.
 }
 
+@examples[#:eval glob-eval
+  (glob "*.scrbl")
+  (glob "main*")
+  (glob "*.rkt")
+]
+
 @defproc[(in-glob [glob-string string] [#:with-dotfiles? dotfiles? boolean #f]) (sequenceof path-string)]{
   Returns a sequence of all paths matched by the glob @code{glob-string}, rather than storing each match explicitly in a list.
   When the keyword argument is @code{#t}, returns all matching results including dotfiles.
 }
+
+@examples[#:eval glob-eval
+ (let ([tmp (path->string (find-system-path 'temp-dir))])
+  (sequence-length (in-glob (string-append tmp "/*"))))
+ (let ([tmp (path->string (find-system-path 'temp-dir))])
+  (sequence-length (in-glob (string-append tmp "/*")
+                            #:with-dotfiles? #t)))
+]
 
 The matches returned by either function should be exactly the same as those returned by the Unix glob @code{file \. -name glob-path-string}.
 Please submit an @hyperlink["http://github.com/bennn/glob/issues"]{issue} if you find a counterexample.
