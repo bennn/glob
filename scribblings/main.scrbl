@@ -1,9 +1,10 @@
 #lang scribble/manual
 @require[racket/include]
-@defmodule[glob]
 
-@title[#:tag "top"]{@bold{Glob: Unix-Stle globbing in Racket}}
+@title[#:tag "top"]{@bold{Glob: Unix-Style globbing in Racket}}
 @author[@hyperlink["https://github.com/bennn"]{Ben Greenman}]
+
+@defmodule[glob]
 
 A glob is like a path string, but allows wildcard characters.
 This library brings Unix-style globbing to Racket.
@@ -22,7 +23,7 @@ This library brings Unix-style globbing to Racket.
 }
 
 The matches returned by either function should be exactly the same as those returned by the Unix glob @code{file \. -name glob-path-string}.
-Please submit an issue if you find a counterexample.
+Please submit an @hyperlink["http://github.com/bennn/glob/issues"]{issue} if you find a counterexample.
 
 @section{Globbing 101}
 
