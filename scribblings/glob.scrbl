@@ -21,7 +21,7 @@ This library brings Unix-style globbing to Racket.
 
 @examples[#:eval glob-eval
   (glob "*.scrbl")
-  (glob "main*")
+  (glob "glob*")
   (glob "*.rkt")
 ]
 
