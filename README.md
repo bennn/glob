@@ -1,5 +1,7 @@
 glob
 ====
+[![Build Status](https://travis-ci.org/bennn/glob.svg)](https://travis-ci.org/bennn/glob)
+[![Coverage Status](https://coveralls.io/repos/bennn/glob/badge.svg?branch=master&service=github)](https://coveralls.io/github/bennn/glob?branch=master)
 
 Unix-style globbing, in Racket.
 
