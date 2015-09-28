@@ -36,7 +36,7 @@
 (define (in-glob pattern #:with-dotfiles? [dotfiles? #f])
   (match (parse pattern)
     [#f
-     (error (format "glob: Invalid pattern '~a'" pattern))]
+     (error 'glob (format "Invalid pattern '~e'" pattern))]
     ;; No globs, just make sure prefix is valid
     [(cons prefix '())
      #:when (or (file-exists? prefix) (directory-exists? prefix))
@@ -234,9 +234,8 @@
     (display-to-file "" fname #:exists 'error))
 
   (define (prefix-all str xs) (for/list ([x xs]) (string-append str x)))
-)
 
-(module+ test
+  ;; -----------------------------------------------------------------------------
   ;; Test utils
   ;; -- escaped?
   (check-false (escaped? #\a #\b))
@@ -299,9 +298,8 @@
   (check-equal? (safe-string-ref "abcd" 2) #\c)
   (check-equal? (safe-string-ref "abcd" 3) #\d)
   (check-equal? (safe-string-ref "abcd" 4) #f)
-)
 
-(module+ test
+  ;; -----------------------------------------------------------------------------
   ;; Generator tests
   ;; -- glob->regexp
   (check-equal? (glob->regexp "foobar") "^foobar$")
@@ -311,6 +309,7 @@
   (check-equal? (glob->regexp "(hello world)") "^\\(hello world\\)$")
   (check-equal? (glob->regexp "^foo|bar$") "^\\^foo\\|bar\\$$")
   (check-equal? (glob->regexp "things?") "^things?$")
+  (check-equal? (glob->regexp "\tescaped\\things\n?") "^\tescaped\\things\n?$")
   (check-equal? (glob->regexp "thang[sies]") "^thang[sies]$")
   (check-equal? (glob->regexp ".?.?.?") "^\\.?\\.?\\.?$")
   ;; -- glob-filter
@@ -339,9 +338,8 @@
   (check-equal? (gen->list (glob-gen (list "*oo*") "" (make-paths "asdf" "woof" "foosh" "foo") #f)) (list "woof" "foosh" "foo"))
   (check-equal? (gen->list (glob-gen (list "*oo*") "" (make-paths ".asdf" ".woof" ".foosh" "foo") #f)) (list "foo"))
   (check-equal? (gen->list (glob-gen (list "*oo*") "" (make-paths ".asdf" ".woof" ".foosh" "foo") #t)) (list ".woof" ".foosh" "foo"))
-)
 
-(module+ test
+  ;; -----------------------------------------------------------------------------
   ;; Make some files & directories
   ;; Run tests
   (in-new-directory (gen-tmp-dirname "glob")
@@ -375,9 +373,8 @@
     (touch-file (string-append cwd "/dir" "/red.co"))
     (check-equal? (gen->list (glob-gen (list "*" "*" "*.co") "" (make-paths cwd) #f)) (prefix-all cwd (list "/dir/red.co")))
     (check-equal? (gen->list (glob-gen (list "*" "*" "*.co?") "" (make-paths cwd) #f)) (prefix-all cwd (list "/dir/blue.c" "/dir/red.c" "/dir/red.co")))
-))
-
-(module+ test
+  )
+  ;; -----------------------------------------------------------------------------
   ;; Parsing tests
   ;; -- validate
   (check-true (validate (list)))
@@ -414,9 +411,9 @@
   (check-equal? (parse "~/foo.txt") (cons (string-append (path->string (find-system-path 'home-dir)) "/foo.txt") '()))
   (check-equal? (parse "~/foo/bar/baz.md") (cons (string-append (path->string (find-system-path 'home-dir)) "/foo/bar/baz.md") '()))
   (check-equal? (parse "~/foo/bar?/baz.md") (cons (string-append (path->string (find-system-path 'home-dir)) "/foo") (list "bar?" "baz.md")))
-)
 
-(module+ test
+
+  ;; -----------------------------------------------------------------------------
   ;; End-to-end tests
   (in-new-directory (gen-tmp-dirname "glob")
     (define cwd (path->string (current-directory)))
@@ -492,5 +489,18 @@
     (check-equal? (glob (tmp-file ".*") #:with-dotfiles? #t) (list (tmp-file ".ignoreme")))
     (check-equal? (glob (tmp-file ".*") #:with-dotfiles? #f) (list (tmp-file ".ignoreme")))
 
-))
+    ;; -- in-glob
+    (let ([p (tmp-file "*")]
+          [to-list (lambda (x) (for/list ([y x]) y))])
+      (check-equal? (to-list (in-glob p))
+                    (glob p))
+      (check-equal? (to-list (in-glob p #:with-dotfiles? #t))
+                    (glob p #:with-dotfiles? #t))
+      (check-equal? (to-list (in-glob p #:with-dotfiles? #f))
+                    (glob p #:with-dotfiles? #f)))
+    (let ([bad-pattern "/c?/../e"])
+      (check-exn #rx"glob"
+        (lambda () (in-glob bad-pattern))))
+  )
+)
 
