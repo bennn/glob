@@ -2,7 +2,7 @@
 @require[racket/include]
 @require[scribble/eval]
 
-@title[#:tag "top"]{@bold{Glob: Unix-Style globbing in Racket}}
+@title[#:tag "top"]{Glob: Unix-Style globbing in Racket}
 @author[@hyperlink["https://github.com/bennn"]{Ben Greenman}]
 
 @defmodule[glob]
