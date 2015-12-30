@@ -5,6 +5,16 @@ glob
 
 Unix-style globbing, in Racket.
 
+```
+#lang racket
+(require glob) ;; Use `glob/typed` in Typed Racket
+
+;; Prints the first line of each Racket file
+(for ([filename (in-glob "*.rkt")])
+  (displayln (with-input-from-file filename read-line)))
+```
+
+
 API Functions
 ---
 - `(glob glob-path-string)` Returns a list of all files or directories matched by the glob `glob-path-string`.
