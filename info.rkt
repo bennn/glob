@@ -5,4 +5,4 @@
 (define pkg-desc "Unix-style globbing")
 (define version "0.1")
 (define pkg-authors '(ben))
-(define scribblings '(("scribblings/glob.scrbl" () ("scripting" tool))))
+(define scribblings '(("scribblings/glob.scrbl" () ("scripting"))))
