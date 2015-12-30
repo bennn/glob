@@ -3,6 +3,6 @@
 (define deps '("base"))
 (define build-deps '("scribble-lib" "racket-doc" "rackunit-lib"))
 (define pkg-desc "Unix-style globbing")
-(define version "0.0")
+(define version "0.1")
 (define pkg-authors '(ben))
 (define scribblings '(("scribblings/glob.scrbl" () ("scripting" tool))))
