@@ -1,14 +1,19 @@
 #lang scribble/manual
-@require[racket/include]
-@require[scribble/eval]
+@require[scribble/eval scriblib/footnote]
 
 @title[#:tag "top"]{Glob: Unix-Style globbing in Racket}
 @author[@hyperlink["https://github.com/bennn"]{Ben Greenman}]
 
 @defmodule[glob]
+@defmodule[glob/typed]
 
 A glob is like a path string, but allows wildcard characters.
 This library brings Unix-style globbing to Racket.
+
+Typed Racket users should @racket[(require glob/typed)] for a type-annotated API.@note{
+ You may use @racket[glob] in a typed module via @racket[require/typed];
+ however, bindings from @racket[glob/typed] may not be used in untyped code.
+}
 
 @section{API Functions}
 @(define glob-eval (make-base-eval '(begin (require glob racket/sequence))))
