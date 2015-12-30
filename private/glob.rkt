@@ -1,6 +1,6 @@
 #lang racket/base
 
-;; Unix-like globbing for filepaths.
+;; Unix-style globbing for filepaths.
 ;; Used to select a set of relative filepaths.
 
 ;; Recognizes the *, ?, and [] operators.
@@ -13,17 +13,20 @@
 ;; - a sextile (*) denotes a list i.e. "path*" should read as "a list of paths"
 
 (provide
+  glob
   ;; (->* (String) (#:with-dotfiles? Boolean) (Listof Path))
   ;; Return a list of all files/directories matching the argument glob.
-  glob
+
+  in-glob
   ;; (->* (String) (#:with-dotfiles? Boolean) (Sequenceof Path))
   ;; Same as glob, but returns an iterable instead of a list.
-  in-glob)
+)
 
-(require racket/match
-         racket/generator
-         (only-in racket/list drop empty?)
-         (only-in racket/string string-join string-split))
+(require
+  racket/match
+  racket/generator
+  (only-in racket/list drop)
+  (only-in racket/string string-join string-split))
 
 ;; --------------------------------------------------------------------------------------------------
 ;; --- API functions
@@ -119,10 +122,10 @@
     [(cons (cons pattern path*) file*)
      (for ([file (in-list (glob-filter pattern file* dotfiles?))]
            ;; Check that no patterns left, or the matched `file` is a directory
-           #:when (or (empty? path*) ;; No patterns left
+           #:when (or (null? path*) ;; No patterns left
                       (directory-exists? (path-concat (list prefix (path->string file))))))
         (let* ([new-prefix (path-concat (list prefix (path->string file)))])
-          (cond [(empty? path*) (yield new-prefix)]
+          (cond [(null? path*) (yield new-prefix)]
                 [else ;; Yield all recursive results
                  (for ([result (in-producer (glob-gen path* new-prefix (directory-list new-prefix) dotfiles?) (void))])
                    (yield result))])))
@@ -191,7 +194,7 @@
 ;; Concat a list of strings into a filepath
 (define (path-concat path*)
   (cond
-    [(empty? path*) "."]
+    [(null? path*) "."]
     [else
       (define non-empty*
         (for/list ([path path*]
