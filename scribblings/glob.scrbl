@@ -5,7 +5,6 @@
 @author[@hyperlink["https://github.com/bennn"]{Ben Greenman}]
 
 @defmodule[glob]
-@defmodule[glob/typed]
 
 A glob is like a path string, but allows wildcard characters.
 This library brings Unix-style globbing to Racket.
@@ -45,6 +44,13 @@ Typed Racket users should @racket[(require glob/typed)] for a type-annotated API
 
 The matches returned by either function should be exactly the same as those returned by the Unix glob @code{file \. -name glob-path-string}.
 Please submit an @hyperlink["http://github.com/bennn/glob/issues"]{issue} if you find a counterexample.
+
+
+@section{Typed API}
+@defmodule[glob/typed]{
+  Provides a Typed Racket edition of the @racket[glob] API.
+}
+
 
 @section{Globbing 101}
 
