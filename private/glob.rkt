@@ -477,6 +477,8 @@
     (check-equal? (glob (tmp-file "test[12]/*")) all-files)
     (check-equal? (glob (tmp-file "test1?2?/*")) all-files)
     (check-equal? (glob (tmp-file "*/file*")) all-files)
+    (check-equal? (glob (tmp-file "*/**file**")) all-files)
+    (check-equal? (glob (tmp-file "**/file**")) all-files)
     (check-equal? (glob (tmp-file "*/file[123]")) all-files)
     (check-equal? (glob (tmp-file "test[12]/file[123]")) all-files)
     (check-equal? (glob (tmp-file "m?test[12]/file[123]")) all-files)
