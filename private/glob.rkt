@@ -137,7 +137,7 @@
 (define (glob-filter pattern file* dotfiles?)
   (define rx (glob->regexp pattern))
   (for/list ([file (in-list file*)]
-             #:when (regexp-match rx (path->string file))
+             #:when (regexp-match? rx (path->string file))
              #:when (or dotfiles?
                         (eq? #\. (safe-string-ref pattern 0))
                         (not (eq? #\. (safe-string-ref (path->string file) 0)))))
