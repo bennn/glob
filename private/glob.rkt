@@ -20,6 +20,11 @@
   in-glob
   ;; (->* (String) (#:with-dotfiles? Boolean) (Sequenceof Path))
   ;; Same as glob, but returns an iterable instead of a list.
+
+  glob-match?
+  ;; (-> String Path-String Boolean)
+  ;; Returns #t if second argument would be a result captured by the first argument.
+  ;; Analogous to `regexp-match?`
 )
 
 (require
@@ -51,6 +56,22 @@
     ;; Fallback: file / directory does not exist
     [_
      (in-list '())]))
+
+;; (: glob-match? (-> String Path-String Boolean))
+(define (glob-match? pattern ps)
+  (and (or (file-exists? ps)
+           (directory-exists? ps))
+       (let ([simpl (simplify-path ps)])
+         (let loop ([pat* (pattern->path* pattern)]
+                    [path* (pattern->path* (path->string simpl))])
+           (or
+            ;; -- base case
+            (and (null? pat*) (null? path*))
+            ;; -- check first elem, recurse
+            (and (not (null? pat*))
+                 (not (null? path*))
+                 (regexp-match? (glob->regexp (car pat*)) (car path*))
+                 (loop (cdr pat*) (cdr path*))))))))
 
 ;; -----------------------------------------------------------------------------
 ;; --- Helpers
@@ -236,7 +257,15 @@
   (define (touch-file fname)
     (display-to-file "" fname #:exists 'error))
 
-  (define (prefix-all str xs) (for/list ([x xs]) (string-append str x)))
+  (define (prefix-all str xs)
+    (for/list ([x xs]) (string-append str x)))
+
+  (define (check-glob-match? g)
+    (or (for/fold ([any? #f])
+                  ([p (in-glob g)])
+          (check-true (glob-match? g p) (format "glob '~a' should match ~a" g p))
+          #t)
+        (check-false (glob-match? g g) (format "glob '~a' should not match ~a" g g))))
 
   ;; -----------------------------------------------------------------------------
   ;; Test utils
@@ -422,42 +451,46 @@
     (define cwd (path->string (current-directory)))
     (define (tmp-file fname) (string-append cwd fname))
 
-    (check-equal? (glob (tmp-file "/tmp-dir2/foo")) '())
-    (check-equal? (glob (tmp-file "foo")) '())
-    (check-equal? (glob (tmp-file "*")) '())
-    (check-equal? (glob (tmp-file ".?")) '())
-    (check-equal? (glob (tmp-file "[]")) '())
+    (let ([no-match* (map tmp-file '("/tmp-dir2/foo" "foo" "*" ".?" "[]"))])
+      (for ([no-match (in-list no-match*)])
+        (check-equal? (glob no-match) '())
+        (check-glob-match? no-match)))
 
     ;; -- Just ONE match
-    (touch-file (tmp-file "main.rkt"))
-    ; Simple patterns
-    (check-equal? (glob (tmp-file "main.rkt")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "notmain.rkt")) (list ))
-    ; * patterns
-    (check-equal? (glob (tmp-file "main.rkt")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "main*")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "*.rkt")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "*rkt")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "m*n.rkt")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "*ain*")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "*in*t")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "m*a*i*n*.*r*k*t")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "mai*kt")) (list (tmp-file "main.rkt")))
-    ; ? patterns
-    (check-equal? (glob (tmp-file "m?ain.rkt")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "z?main.rkt")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "m?main.rkt")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "m?ainx?.rkt?x?")) (list (tmp-file "main.rkt")))
-    ; [] patterns
-    (check-equal? (glob (tmp-file "[m][a][i]n.rkt")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "main.rk[tttt]")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "[abcm]ain.rkt")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "[ma][ma]in.rkt")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "[ma][ma]in.[xr]kt")) (list (tmp-file "main.rkt")))
-    ; misc
-    (check-equal? (glob (tmp-file "[m][a][i]n.r*")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "[xyz]?main.rkt")) (list (tmp-file "main.rkt")))
-    (check-equal? (glob (tmp-file "[xyz]?main*[x]?rkt")) (list (tmp-file "main.rkt")))
+    (let* ([fname (tmp-file "main.rkt")]
+           [_ (touch-file fname)]
+           [check-equal-fname? (lambda (g)
+                                 (check-equal? (glob g) (list fname))
+                                 (check-glob-match? g))])
+      ; Simple patterns
+      (check-equal? (glob (tmp-file "notmain.rkt")) '())
+      (check-equal-fname? fname)
+      ; * patterns
+      (check-equal-fname? fname)
+      (check-equal-fname? (tmp-file "main*"))
+      (check-equal-fname? (tmp-file "*.rkt"))
+      (check-equal-fname? (tmp-file "*rkt"))
+      (check-equal-fname? (tmp-file "m*n.rkt"))
+      (check-equal-fname? (tmp-file "*ain*"))
+      (check-equal-fname? (tmp-file "*in*t"))
+      (check-equal-fname? (tmp-file "m*a*i*n*.*r*k*t"))
+      (check-equal-fname? (tmp-file "mai*kt"))
+      ; ? patterns
+      (check-equal-fname? (tmp-file "m?ain.rkt"))
+      (check-equal-fname? (tmp-file "z?main.rkt"))
+      (check-equal-fname? (tmp-file "m?main.rkt"))
+      (check-equal-fname? (tmp-file "m?ainx?.rkt?x?"))
+      ; [] patterns
+      (check-equal-fname? (tmp-file "[m][a][i]n.rkt"))
+      (check-equal-fname? (tmp-file "main.rk[tttt]"))
+      (check-equal-fname? (tmp-file "[abcm]ain.rkt"))
+      (check-equal-fname? (tmp-file "[ma][ma]in.rkt"))
+      (check-equal-fname? (tmp-file "[ma][ma]in.[xr]kt"))
+      ; misc
+      (check-equal-fname? (tmp-file "[m][a][i]n.r*"))
+      (check-equal-fname? (tmp-file "[xyz]?main.rkt"))
+      (check-equal-fname? (tmp-file "[xyz]?main*[x]?rkt"))
+    )
 
     ;; -- More than one match
     (make-directory (tmp-file "test1"))
@@ -471,20 +504,39 @@
 
     (define all-files (map tmp-file (list "test1/file1" "test1/file2" "test1/file3" "test2/file1" "test2/file2" "test2/file3")))
 
-    (check-equal? (glob (tmp-file "*")) (list (tmp-file "main.rkt") (tmp-file "test1") (tmp-file "test2")))
-    (check-equal? (glob (tmp-file "*/*")) all-files)
-    (check-equal? (glob (tmp-file "test*/*")) all-files)
-    (check-equal? (glob (tmp-file "test[12]/*")) all-files)
-    (check-equal? (glob (tmp-file "test1?2?/*")) all-files)
-    (check-equal? (glob (tmp-file "*/file*")) all-files)
-    (check-equal? (glob (tmp-file "*/**file**")) all-files)
-    (check-equal? (glob (tmp-file "**/file**")) all-files)
-    (check-equal? (glob (tmp-file "*/file[123]")) all-files)
-    (check-equal? (glob (tmp-file "test[12]/file[123]")) all-files)
-    (check-equal? (glob (tmp-file "m?test[12]/file[123]")) all-files)
-    (check-equal? (glob (tmp-file "test1?2?/file1?2?3?")) all-files)
+    (define (check-equal-all-files? g)
+      (check-equal? (glob g) all-files)
+      (check-glob-match? g))
 
-    (check-equal? (glob (tmp-file "test1/file*")) (list (tmp-file "test1/file1") (tmp-file "test1/file2") (tmp-file "test1/file3")))
+    (let ([g (tmp-file "*")])
+      (check-equal? (glob g) (list (tmp-file "main.rkt") (tmp-file "test1") (tmp-file "test2")))
+      (check-glob-match? g))
+
+    (check-equal-all-files? (tmp-file "*/*"))
+    (check-equal-all-files? (tmp-file "test*/*"))
+    (check-equal-all-files? (tmp-file "test[12]/*"))
+    (check-equal-all-files? (tmp-file "test1?2?/*"))
+    (check-equal-all-files? (tmp-file "*/file*"))
+    (check-equal-all-files? (tmp-file "*/**file**"))
+    (check-equal-all-files? (tmp-file "**/file**"))
+    (check-equal-all-files? (tmp-file "*/file[123]"))
+    (check-equal-all-files? (tmp-file "test[12]/file[123]"))
+    (check-equal-all-files? (tmp-file "m?test[12]/file[123]"))
+    (check-equal-all-files? (tmp-file "test1?2?/file1?2?3?"))
+
+    (let ([g (tmp-file "test1/file*")])
+      (check-equal? (glob g) (list (tmp-file "test1/file1") (tmp-file "test1/file2") (tmp-file "test1/file3")))
+      (check-glob-match? g))
+
+    ;; -- glob-match?
+    (define (check-glob-match?-theorem g p)
+      (if (member (path->string (simplify-path p)) (glob g))
+        (check-true (glob-match? g p) (format "glob '~a' should match '~a'" g p))
+        (check-false (glob-match? g p) (format "glob '~a' should not match '~a'" g p))))
+
+    (check-glob-match?-theorem (tmp-file "test1/../main.rkt") (tmp-file "main.rkt"))
+    (check-glob-match?-theorem (tmp-file "ma*in.rkt") (tmp-file "test1/../main.rkt"))
+    (check-glob-match?-theorem (tmp-file "moon.rkt") (tmp-file "main.rkt"))
 
     ;; -- dotfiles
     (touch-file (tmp-file ".ignoreme"))

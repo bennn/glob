@@ -20,6 +20,7 @@ API Functions
 ---
 - `(glob glob-path-string)` Returns a list of all files or directories matched by the glob `glob-path-string`.
 - `(in-glob glob-path-string)` Returns a lazy sequence of all matches.
+- `(glob-match? glob-path-string path-string)` Return `#t` if `path-string` would be captured by `glob-path-string`.
 
 The matches returned by either function should be exactly the same as those returned by the Unix glob `file . -name glob-path-string`.
 Please submit an issue if you find a counterexample.
