@@ -1,8 +1,10 @@
 #lang scribble/manual
-@require[scribble/eval scriblib/footnote]
+@require[scribble/eval scriblib/footnote (for-label file/glob)]
 
 @title[#:tag "top"]{Glob: Unix-Style globbing}
 @author[@hyperlink["https://github.com/bennn"]{Ben Greenman}]
+
+@deprecated[@racketmodname[file/glob]]
 
 @defmodule[glob]
 
